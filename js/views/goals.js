@@ -43,7 +43,7 @@ export function render(root) {
   root.innerHTML = `
     <div class="page-head">
       <div><h2>Target Tabungan</h2><p class="muted">${state.goals.length} target · terkumpul <b class="num">${rupiah(total)}</b></p></div>
-      <button class="btn btn-primary" id="addGoal"><i class="fa-solid fa-plus"></i>Tambah Target</button>
+      <button class="btn btn-primary write-only" id="addGoal"><i class="fa-solid fa-plus"></i>Tambah Target</button>
     </div>
     ${state.goals.length ? `<div class="grid grid-2">${state.goals.map(g => {
       const pct = g.targetNominal ? Math.min(100, Math.round(g.terkumpul / g.targetNominal * 100)) : 0;
@@ -59,9 +59,9 @@ export function render(root) {
           ${g.catatan ? `<div>${esc(g.catatan)}</div>` : ''}
         </div>
         <div class="row" style="margin-top:14px">
-          <button class="btn btn-primary btn-sm grow" data-fund="${esc(g.id)}"><i class="fa-solid fa-piggy-bank"></i>Tambah Dana</button>
-          <button class="btn-icon" data-edit="${esc(g.id)}" aria-label="Edit"><i class="fa-solid fa-pen"></i></button>
-          <button class="btn-icon" data-del="${esc(g.id)}" aria-label="Hapus"><i class="fa-solid fa-trash"></i></button>
+          <button class="btn btn-primary btn-sm grow write-only" data-fund="${esc(g.id)}"><i class="fa-solid fa-piggy-bank"></i>Tambah Dana</button>
+          <button class="btn-icon write-only" data-edit="${esc(g.id)}" aria-label="Edit"><i class="fa-solid fa-pen"></i></button>
+          <button class="btn-icon write-only" data-del="${esc(g.id)}" aria-label="Hapus"><i class="fa-solid fa-trash"></i></button>
         </div></div>`;
     }).join('')}</div>` : `<div class="card">${emptyHTML('bullseye', 'Belum ada target. Buat target pertama, misalnya dana darurat.')}</div>`}
     <p class="hint" style="margin-top:14px">“Tambah Dana” mencatat pengeluaran kategori Tabungan dari dompet yang Anda pilih, lalu menambah jumlah terkumpul. Menghapus transaksi tersebut otomatis mengurangi kembali.</p>`;

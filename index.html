@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/layout.css">
   <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/print.css">
   <script>
     /* Terapkan tema sebelum render agar tidak berkedip */
     (function () {
@@ -26,10 +27,11 @@
     })();
   </script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
   <div id="progress" class="progress-bar"></div>
-  <div id="connectRoot" hidden></div>
+  <div id="authRoot" hidden></div>
 
   <div class="app" id="app" hidden>
     <aside class="sidebar" id="sidebar">
@@ -37,19 +39,28 @@
         <div class="brand-logo"><i class="fa-solid fa-wallet"></i></div>
         <div><b>Pantau Dompetku</b><small>Keuangan pribadi</small></div>
       </div>
+      <div class="space-box">
+        <label class="label" for="spaceSel">Ruang aktif</label>
+        <select id="spaceSel" class="select" aria-label="Ruang aktif"></select>
+      </div>
       <nav class="nav" id="nav">
         <div class="nav-label">Menu</div>
         <a href="#/dashboard" data-route="dashboard"><i class="fa-solid fa-house"></i>Dashboard</a>
         <a href="#/transactions" data-route="transactions"><i class="fa-solid fa-receipt"></i>Transaksi</a>
         <a href="#/reports" data-route="reports"><i class="fa-solid fa-chart-column"></i>Laporan Bulanan</a>
         <div class="nav-label">Kelola</div>
+        <a href="#/family" data-route="family"><i class="fa-solid fa-people-roof"></i>Keluarga<span class="nav-badge" id="famBadge" hidden></span></a>
         <a href="#/wallets" data-route="wallets"><i class="fa-solid fa-wallet"></i>Dompet</a>
         <a href="#/goals" data-route="goals"><i class="fa-solid fa-bullseye"></i>Target Tabungan</a>
         <a href="#/settings" data-route="settings"><i class="fa-solid fa-gear"></i>Pengaturan</a>
       </nav>
       <div class="sidebar-foot">
-        <div class="conn" id="connStatus"><span class="dot"></span><span>Terhubung</span></div>
-        <button class="btn-icon" id="themeToggle" title="Ganti tema" aria-label="Ganti tema"><i class="fa-solid fa-moon"></i></button>
+        <div class="user-card" id="userCard"></div>
+        <div class="row between">
+          <div class="conn" id="connStatus"><span class="dot"></span><span>Terhubung</span></div>
+          <div class="row"><button class="btn-icon" id="themeToggle" title="Ganti tema" aria-label="Ganti tema"><i class="fa-solid fa-moon"></i></button>
+          <button class="btn-icon" id="logoutBtn" title="Keluar" aria-label="Keluar"><i class="fa-solid fa-right-from-bracket"></i></button></div>
+        </div>
       </div>
     </aside>
     <div class="scrim" id="scrim"></div>
@@ -60,7 +71,7 @@
         <h1 id="pageTitle">Dashboard</h1>
         <div class="top-actions">
           <button class="btn-icon" id="refreshBtn" title="Muat ulang data" aria-label="Muat ulang"><i class="fa-solid fa-arrows-rotate"></i></button>
-          <button class="btn btn-primary desktop-only" id="addTxTop"><i class="fa-solid fa-plus"></i>Transaksi</button>
+          <button class="btn btn-primary desktop-only write-only" id="addTxTop"><i class="fa-solid fa-plus"></i>Transaksi</button>
         </div>
       </header>
       <main class="content" id="view"></main>
@@ -69,7 +80,7 @@
     <nav class="bottom-nav" aria-label="Navigasi utama">
       <a href="#/dashboard" data-route="dashboard"><i class="fa-solid fa-house"></i>Beranda</a>
       <a href="#/transactions" data-route="transactions"><i class="fa-solid fa-receipt"></i>Transaksi</a>
-      <button class="fab" id="fabAdd" aria-label="Tambah transaksi"><i class="fa-solid fa-plus"></i></button>
+      <button class="fab write-only" id="fabAdd" aria-label="Tambah transaksi"><i class="fa-solid fa-plus"></i></button>
       <a href="#/reports" data-route="reports"><i class="fa-solid fa-chart-column"></i>Laporan</a>
       <button class="bn" id="bnMenu"><i class="fa-solid fa-bars-staggered"></i>Menu</button>
     </nav>
@@ -78,6 +89,7 @@
   <dialog id="modal" class="modal"></dialog>
   <dialog id="confirmDlg" class="modal sm"></dialog>
   <div id="toasts" class="toasts"></div>
+  <div id="printRoot" aria-hidden="true"></div>
 
   <script type="module" src="js/app.js"></script>
 </body>

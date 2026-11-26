@@ -117,6 +117,8 @@ function bindDelete(d, tx) {
    ===================================================================== */
 const F = { mode: 'cycle', from: '', to: '', q: '', wallet: 'ALL', jenis: 'ALL', kategori: 'ALL', limit: 100 };
 
+window.addEventListener('spacechange', () => Object.assign(F, { wallet: 'ALL', jenis: 'ALL', kategori: 'ALL', q: '', limit: 100 }));
+
 function filtered() {
   let from = '', to = '';
   if (F.mode === 'cycle') { const c = activeCycle(); from = c.start; to = c.end; }

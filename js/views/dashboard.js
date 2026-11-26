@@ -107,7 +107,7 @@ export function render(root) {
     if (!text) return;
     busy(true);
     try {
-      const p = await call('ai.parse', { text });
+      const p = await call('ai.parse', { text, today: todayISO() });
       if (!p.nominal) toast('Nominal tidak terdeteksi, silakan isi manual.', 'error');
       $('#smartIn', root).value = '';
       openTxForm({ preset: p });

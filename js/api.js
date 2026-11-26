@@ -1,44 +1,37 @@
 import { CONFIG } from './config.js';
 
-const KEY = 'pd_conn';
+const SKEY = 'pd_session';
+let spaceId = '';
 
-export function getConn() {
-  try {
-    const c = JSON.parse(localStorage.getItem(KEY) || 'null');
-    if (c && c.url) return c;
-  } catch (e) { /* abaikan */ }
-  return { url: CONFIG.API_URL || '', token: '' };
-}
-export const setConn = c => localStorage.setItem(KEY, JSON.stringify(c));
-export const clearConn = () => localStorage.removeItem(KEY);
+export const getSession = () => localStorage.getItem(SKEY) || '';
+export const setSession = t => localStorage.setItem(SKEY, t);
+export const clearSession = () => localStorage.removeItem(SKEY);
+export const setSpace = id => { spaceId = id || ''; };
+export const isConfigured = () => !!CONFIG.API_URL && !!CONFIG.GOOGLE_CLIENT_ID;
 
 function fail(message, code) { const e = new Error(message); e.code = code; return e; }
 
 /**
- * Panggil Apps Script. Content-Type text/plain sengaja dipakai agar request
- * tergolong "simple" (tanpa preflight CORS) — Apps Script tidak mendukung OPTIONS.
+ * Panggil Apps Script. Content-Type text/plain sengaja dipakai agar request tergolong "simple"
+ * (tanpa preflight CORS) — Apps Script tidak mendukung OPTIONS.
+ * Kode error: AUTH (sesi tidak valid) · FORBIDDEN · LIMIT · NETWORK · BAD_RESPONSE · SERVER
  */
-export async function request(url, token, action, payload = {}) {
-  if (!url) throw fail('URL API belum diatur.', 'NO_URL');
+export async function call(action, payload = {}) {
+  if (!CONFIG.API_URL) throw fail('API_URL belum diisi di js/config.js.', 'CONFIG');
   let res;
   try {
-    res = await fetch(url, {
+    res = await fetch(CONFIG.API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action, token, payload }),
+      body: JSON.stringify({ action, session: getSession(), spaceId, payload }),
       redirect: 'follow'
     });
   } catch (e) {
-    throw fail('Tidak dapat terhubung ke server. Periksa koneksi internet dan URL Web App.', 'NETWORK');
+    throw fail('Tidak dapat terhubung ke server. Periksa koneksi internet Anda.', 'NETWORK');
   }
   let json;
   try { json = JSON.parse(await res.text()); }
-  catch (e) { throw fail('Respons server tidak valid. Pastikan Web App di-deploy dengan akses "Anyone" dan URL berakhiran /exec.', 'BAD_RESPONSE'); }
-  if (!json.ok) throw fail(json.error || 'Terjadi kesalahan.', /token/i.test(json.error || '') ? 'AUTH' : 'SERVER');
+  catch (e) { throw fail('Respons server tidak valid. Pastikan Web App di-deploy dengan akses "Anyone" dan API_URL berakhiran /exec.', 'BAD_RESPONSE'); }
+  if (!json.ok) throw fail(json.error || 'Terjadi kesalahan.', json.code || 'SERVER');
   return json.data;
-}
-
-export function call(action, payload) {
-  const { url, token } = getConn();
-  return request(url, token, action, payload);
 }

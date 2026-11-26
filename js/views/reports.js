@@ -4,6 +4,7 @@ import { cycleList, cycleShort, cycleTitle, shiftCycle } from '../cycle.js';
 import { cycleChart, categoryChart, dailyChart, PALETTE } from '../charts.js';
 import { toast } from '../ui.js';
 import { emptyHTML } from '../components.js';
+import { openPrintDialog } from './print.js';
 
 let COUNT = Number(localStorage.getItem('pd_report_count')) || 6;
 let sel = -1; // indeks siklus terpilih (-1 = terbaru)
@@ -32,9 +33,10 @@ export function render(root) {
           <div class="field" style="flex-direction:row;align-items:center;gap:10px">
             <label for="startDay" style="white-space:nowrap">Tanggal gajian / awal siklus</label>
             <input class="input" type="number" id="startDay" min="1" max="28" value="${s}" style="width:76px">
-            <button class="btn btn-primary btn-sm" id="saveDay">Terapkan</button>
+            <button class="btn btn-primary btn-sm write-only" id="saveDay">Terapkan</button>
           </div>
         </div>
+        <button class="btn" id="btnPrint"><i class="fa-solid fa-print"></i>Cetak Laporan</button>
         <div class="row">
           <span class="label">Tampilkan</span>
           <div class="seg seg-sm">${[3, 6, 12].map(n => `<label><input type="radio" name="cnt" value="${n}" ${COUNT === n ? 'checked' : ''}><span>${n} siklus</span></label>`).join('')}</div>
@@ -80,7 +82,10 @@ export function render(root) {
       <div class="card"><div class="card-head"><div class="card-title"><i class="fa-solid fa-wallet"></i>Per Dompet & Pengeluaran Terbesar</div></div>
         ${Object.entries(cur.r.byWallet).map(([n, v]) => `<div class="kv"><span>${esc(n)}</span><span class="num"><span class="text-success">+${rupiah(v.masuk)}</span> · <span class="text-danger">−${rupiah(v.keluar)}</span></span></div>`).join('') || '<p class="muted">Tidak ada transaksi.</p>'}
         ${top.length ? `<div class="label" style="margin:14px 0 4px">5 PENGELUARAN TERBESAR</div>` + top.map(t => `<div class="kv"><span>${esc(t.keterangan || t.kategori)} <small class="muted">· ${fmtDate(t.tanggal)}</small></span><b class="num">${rupiah(t.nominal)}</b></div>`).join('') : ''}</div>
-    </div>`;
+    </div>
+    ${state.space && state.space.type === 'family' ? `<div class="card section"><div class="card-head"><div class="card-title"><i class="fa-solid fa-people-group"></i>Keuangan Gabungan per Anggota</div></div>
+      ${Object.keys(cur.r.byMember).length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Anggota</th><th class="right">Pemasukan</th><th class="right">Pengeluaran</th><th class="right">Porsi belanja</th></tr></thead><tbody>
+      ${Object.entries(cur.r.byMember).sort((a, b) => b[1].keluar - a[1].keluar).map(([n, v]) => `<tr><td><b>${esc(n)}</b></td><td class="right num text-success">${rupiah(v.masuk)}</td><td class="right num text-danger">${rupiah(v.keluar)}</td><td class="right"><span class="badge">${cur.r.keluar ? Math.round(v.keluar / cur.r.keluar * 100) : 0}%</span></td></tr>`).join('')}</tbody></table></div>` : emptyHTML('people-group', 'Belum ada transaksi.')}</div>` : ''}`;
 
   cycleChart('chRep', rows, { selected: sel, onSelect: i => { sel = i; render(root); } });
   if (catEntries.length) categoryChart('chCat', cur.r.expenseByCat);
@@ -90,6 +95,7 @@ export function render(root) {
   $$('input[name="cnt"]', root).forEach(r => r.onchange = () => { COUNT = Number(r.value); localStorage.setItem('pd_report_count', COUNT); sel = -1; render(root); });
   $('#prevAnchor', root).onclick = () => { ANCHOR -= COUNT; sel = -1; render(root); };
   $('#nextAnchor', root).onclick = () => { ANCHOR = Math.min(1, ANCHOR + COUNT); sel = -1; render(root); };
+  $('#btnPrint', root).onclick = () => openPrintDialog(cur.c.start);
   $('#saveDay', root).onclick = async () => {
     const v = parseInt($('#startDay', root).value, 10);
     if (!(v >= 1 && v <= 28)) return toast('Tanggal harus antara 1 dan 28.', 'error');

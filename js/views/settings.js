@@ -1,11 +1,11 @@
 import { $, $$, esc, download, todayISO } from '../utils.js';
 import { CONFIG } from '../config.js';
-import { getConn, setConn, clearConn, request } from '../api.js';
-import { state, saveSettings, load } from '../store.js';
+import { call, clearSession } from '../api.js';
+import { state, saveSettings, load, canWrite } from '../store.js';
 import { getTheme, saveTheme } from '../theme.js';
-import { toast, confirmDialog } from '../ui.js';
+import { toast, confirmDialog, formModal, busy } from '../ui.js';
 import { swatchesHTML } from '../components.js';
-import { showConnect } from './connect.js';
+import { showLogin, googleSignOut } from './login.js';
 
 const LOCKED = ['Tabungan', 'Lainnya'];
 
@@ -16,7 +16,7 @@ function catSection(title, key, list) {
 }
 
 export function render(root) {
-  const t = getTheme(), conn = getConn(), st = state.settings;
+  const t = getTheme(), st = state.settings, me = state.me || {}, sp = state.space || {};
   root.innerHTML = `
     <div class="grid grid-2" style="align-items:start">
       <div class="stack">
@@ -49,24 +49,23 @@ export function render(root) {
 
       <div class="stack">
         <div class="card">
-          <div class="card-head"><div class="card-title"><i class="fa-solid fa-plug"></i>Koneksi Backend</div>
-            <span class="badge good">Terhubung</span></div>
-          <div class="form">
-            <div class="field"><label>URL Web App (Apps Script)</label><input class="input" id="cUrl" value="${esc(conn.url)}" placeholder="https://script.google.com/macros/s/…/exec"></div>
-            <div class="field"><label>Token API</label><input class="input" id="cToken" type="password" value="${esc(conn.token)}" placeholder="Sama dengan API_TOKEN di Script Properties" autocomplete="off"></div>
-            <div class="row"><button class="btn grow" id="cTest"><i class="fa-solid fa-vial"></i>Uji</button>
-              <button class="btn btn-primary grow" id="cSave">Simpan</button></div>
-            <button class="btn btn-danger" id="cReset"><i class="fa-solid fa-link-slash"></i>Putuskan koneksi di perangkat ini</button>
-          </div>
+          <div class="card-head"><div class="card-title"><i class="fa-solid fa-circle-user"></i>Akun</div></div>
+          <div class="member" style="padding-top:0">
+            ${me.picture ? `<img class="avatar" src="${esc(me.picture)}" alt="" referrerpolicy="no-referrer">` : `<span class="avatar">${esc((me.name || '?').charAt(0).toUpperCase())}</span>`}
+            <div class="grow"><b>${esc(me.name)}</b><small class="muted">${esc(me.email)}</small></div></div>
+          <div class="kv"><span>Ruang aktif</span><b>${esc(sp.type === 'personal' ? 'Pribadi' : sp.name || '-')}</b></div>
+          <div class="kv"><span>Peran Anda</span><b>${{ owner: 'Pemilik', member: 'Anggota', viewer: 'Hanya lihat' }[state.role] || '-'}</b></div>
+          <div class="row wrap" style="margin-top:12px"><button class="btn" id="logout"><i class="fa-solid fa-right-from-bracket"></i>Keluar</button>
+            <button class="btn btn-danger" id="delAcc"><i class="fa-solid fa-user-slash"></i>Hapus akun & data</button></div>
         </div>
 
         <div class="card">
-          <div class="card-head"><div class="card-title"><i class="fa-solid fa-robot"></i>Asisten AI & Info</div></div>
+          <div class="card-head"><div class="card-title"><i class="fa-solid fa-shield-halved"></i>Keamanan & Privasi</div></div>
+          <div class="kv"><span>Enkripsi data keuangan</span><b>AES-256 + HMAC 🔒</b></div>
+          <div class="kv"><span>Penyimpanan</span><b>Terpisah per ruang</b></div>
           <div class="kv"><span>Mode AI</span><b>${state.meta.aiEnabled ? 'Gemini aktif' : 'Berbasis aturan'}</b></div>
-          <div class="kv"><span>Token API di server</span><b>${state.meta.tokenRequired ? 'Aktif 🔒' : 'Belum diatur ⚠️'}</b></div>
           <div class="kv"><span>Versi backend</span><b>${esc(state.meta.version || '-')}</b></div>
-          <div class="kv"><span>Zona waktu</span><b>${esc(state.meta.timezone || '-')}</b></div>
-          <p class="hint" style="margin-top:10px">Untuk mengaktifkan Gemini, isi <code>GEMINI_API_KEY</code> di Apps Script → Project Settings → Script Properties.</p>
+          <p class="hint" style="margin-top:10px">Dompet, transaksi, dan target dienkripsi sebelum disimpan. Kunci dipegang server aplikasi (bukan enkripsi ujung-ke-ujung), sehingga pengelola layanan secara teknis dapat membukanya. Nama & email akun disimpan apa adanya untuk login dan undangan keluarga.${state.meta.aiEnabled ? ' Fitur AI hanya mengirim ringkasan agregat atau satu kalimat transaksi ke Google Gemini.' : ''}</p>
         </div>
 
         <div class="card">
@@ -82,6 +81,7 @@ export function render(root) {
   $$('#accSw [data-color]', root).forEach(b => b.onclick = () => { saveTheme({ accent: b.dataset.color }); $('#accCustom', root).value = b.dataset.color; });
   $('#accCustom', root).onchange = e => saveTheme({ accent: e.target.value });
 
+  if (!canWrite()) $$('#saveDay, [data-addbtn], [data-add], [data-rm]', root).forEach(e => { e.disabled = true; e.title = 'Akses hanya-lihat'; });
   /* siklus */
   $('#saveDay', root).onclick = async () => {
     const v = parseInt($('#startDay', root).value, 10);
@@ -105,20 +105,21 @@ export function render(root) {
     try { await saveSettings({ [key]: state.settings[key].filter(c => c !== btn.dataset.rm) }); } catch (err) { toast(err.message, 'error'); }
   }));
 
-  /* koneksi */
-  const vals = () => ({ url: $('#cUrl', root).value.trim(), token: $('#cToken', root).value.trim() });
-  $('#cTest', root).onclick = async () => {
-    const { url, token } = vals();
-    try { const r = await request(url, token, 'ping'); toast(`Koneksi OK (backend v${r.version})`); } catch (e) { toast(e.message, 'error'); }
+  /* akun */
+  $('#logout', root).onclick = async () => {
+    try { await call('auth.logout'); } catch (e) { /* abaikan */ }
+    clearSession(); googleSignOut(); showLogin();
   };
-  $('#cSave', root).onclick = async () => {
-    const c = vals();
-    try { await request(c.url, c.token, 'ping'); setConn(c); toast('Koneksi disimpan.'); await load(); } catch (e) { toast(e.message, 'error'); }
-  };
-  $('#cReset', root).onclick = async () => {
-    if (!await confirmDialog({ title: 'Putuskan koneksi?', message: 'URL dan token di perangkat ini akan dihapus. Data di Google Sheet tidak terpengaruh.', okLabel: 'Putuskan', danger: true })) return;
-    clearConn(); showConnect();
-  };
+  $('#delAcc', root).onclick = () => formModal({
+    title: 'Hapus akun & semua data', submitLabel: 'Hapus permanen',
+    html: `<p>Seluruh data di <b>ruang pribadi</b> Anda, keanggotaan keluarga, dan akun akan dihapus <b>permanen</b>. Ruang Keluarga yang Anda miliki harus dihapus lebih dulu.</p>
+      <div class="field"><label>Ketik <b>HAPUS</b> untuk melanjutkan</label><input class="input" name="c" autocomplete="off"></div>`,
+    async onSubmit(form) {
+      if (form.c.value.trim() !== 'HAPUS') throw new Error('Ketik HAPUS (huruf besar) untuk konfirmasi.');
+      await call('account.delete', { confirm: 'HAPUS' });
+      clearSession(); googleSignOut(); document.getElementById('modal').close(); showLogin(); toast('Akun dan data Anda telah dihapus.');
+    }
+  });
 
   /* data */
   $('#reload', root).onclick = async () => { try { await load(); toast('Data dimuat ulang.'); } catch (e) { toast(e.message, 'error'); } };

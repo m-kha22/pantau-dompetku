@@ -14,7 +14,7 @@ export function walletCardHTML(w, balance, { actions = false } = {}) {
     <div class="w-top"><span class="w-ico"><i class="fa-solid fa-${walletIcon(w)}"></i></span>
       <div><div class="w-name">${esc(w.nama)}</div><div class="w-type">${esc(w.tipe)}</div></div></div>
     <div class="w-bal num">${rupiah(balance)}</div>
-    ${actions ? `<div class="w-actions"><button data-edit="${esc(w.id)}" aria-label="Edit"><i class="fa-solid fa-pen"></i></button>
+    ${actions ? `<div class="w-actions write-only"><button data-edit="${esc(w.id)}" aria-label="Edit"><i class="fa-solid fa-pen"></i></button>
       <button data-del="${esc(w.id)}" aria-label="Hapus"><i class="fa-solid fa-trash"></i></button></div>` : ''}
   </div>`;
 }
@@ -27,7 +27,7 @@ export function txItemHTML(t) {
   return `<button class="tx" data-tx="${esc(t.id)}">
     <span class="tx-ico ${cls}"><i class="fa-solid fa-${catIcon(t.kategori, trf ? 'Transfer' : t.jenis)}"></i></span>
     <span class="tx-main"><b>${esc(t.kategori)}${trf ? ' · ' + esc(t.jenis.replace('Transfer ', '')) : ''}</b>
-      <small><i class="dot" style="background:${esc(w ? w.warna : 'var(--muted)')}"></i>${esc(t.dompet)}${t.keterangan ? ' · ' + esc(t.keterangan) : ''}</small></span>
+      <small><i class="dot" style="background:${esc(w ? w.warna : 'var(--muted)')}"></i>${esc(t.dompet)}${t.keterangan ? ' · ' + esc(t.keterangan) : ''}${state.space && state.space.type === 'family' && t.oleh ? ' · 👤 ' + esc(t.oleh) : ''}</small></span>
     <span class="tx-amt ${cls} num">${sign}${rupiah(t.nominal).replace('Rp ', 'Rp ')}</span>
   </button>`;
 }

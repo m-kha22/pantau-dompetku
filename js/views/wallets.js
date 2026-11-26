@@ -53,7 +53,7 @@ export function render(root) {
   root.innerHTML = `
     <div class="page-head">
       <div><h2>Dompet Saya</h2><p class="muted">${state.wallets.length} dompet · total saldo <b class="num">${rupiah(bal.total)}</b></p></div>
-      <button class="btn btn-primary" id="addWallet"><i class="fa-solid fa-plus"></i>Tambah Dompet</button>
+      <button class="btn btn-primary write-only" id="addWallet"><i class="fa-solid fa-plus"></i>Tambah Dompet</button>
     </div>
     ${state.wallets.length
       ? `<div class="wallet-grid">${state.wallets.map(w => walletCardHTML(w, bal.byName[w.nama], { actions: true })).join('')}</div>`
