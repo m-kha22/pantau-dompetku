@@ -1,58 +1,66 @@
-# Pantau Dompetku v2
+# Pantau Dompetku v3
 
-Aplikasi pencatat keuangan pribadi. **Backend**: Google Apps Script + Google Sheet. **Frontend**: HTML/CSS/JS statis (tanpa build) untuk GitHub + Vercel.
+Keuangan pribadi & keluarga. **Backend**: Google Apps Script (API JSON). **Frontend**: HTML/CSS/JS statis tanpa build (GitHub + Vercel).
+
+- 🔐 **Login Google** (Google Identity Services) — tanpa kata sandi sendiri.
+- 🗄️ **Penyimpanan terpisah per ruang**: tiap ruang = 1 Spreadsheet sendiri; isinya hanya `ID` + payload **terenkripsi AES-256-CTR + HMAC-SHA256**, kunci data unik per ruang.
+- 👨‍👩‍👧 **Ruang Keluarga**: undang akun Google lain; peran *Pemilik / Anggota / Hanya lihat*; setiap transaksi mencatat siapa pembuatnya; ringkasan gabungan per anggota.
+- 🖨️ **Cetak laporan bulanan** (A4, per siklus gajian) → Print atau *Simpan sebagai PDF*.
+- Dompet tak terbatas + warna kustom, tema, siklus gajian, grafik, target tabungan, input cepat AI (fitur v2 tetap ada).
 
 ```
-pantau-dompetku/
-├── appscript/              ← disalin ke Apps Script (backend / API JSON)
-│   ├── Code.gs             router doGet/doPost + auth token
-│   ├── Config.gs           nama sheet, header kolom, kategori bawaan
-│   ├── Db.gs               akses Sheet, migrasi kolom, util tanggal/angka
-│   ├── Wallets.gs · Transactions.gs · Goals.gs · Settings.gs
-│   └── Ai.gs               Gemini (opsional) + parser/analisis berbasis aturan
-└── frontend/               ← di-upload ke GitHub, di-deploy Vercel
-    ├── index.html · vercel.json
-    ├── css/  base · layout · components
-    └── js/   app · api · store · cycle · theme · ui · charts · components · utils · config
-        └── views/  dashboard · transactions · reports · wallets · goals · settings · connect
+appscript/   Code(router) Config Util Master Auth Spaces Store Crypto Wallets Transactions Goals Settings Ai Migrate + appsscript.json
+frontend/    index.html · vercel.json · css/(base layout components print) · js/(app api store cycle theme ui charts components utils config) · js/views/(login dashboard transactions reports family wallets goals settings print)
+tests/       crypto-test.js · backend-test.js · e2e-ui.js · gas-mock.js     (node tests/…)
 ```
 
-## 1. Deploy backend (Apps Script)
+## 1. Google OAuth Client ID
+1. [Google Cloud Console](https://console.cloud.google.com) → buat/ pilih project → **APIs & Services → OAuth consent screen**: User type *External*, isi nama app & email. Scope cukup bawaan (email, profile, openid). Agar **semua orang** bisa login, ubah status ke **In production** (jika masih *Testing*, hanya maksimal 100 test user).
+2. **Credentials → Create Credentials → OAuth client ID → Web application**.
+   **Authorized JavaScript origins**: `https://NAMA-ANDA.vercel.app` (+ `http://localhost:8080` untuk uji lokal). Salin **Client ID**.
 
-1. Buka Google Sheet lama Anda → **Extensions → Apps Script**.
-2. Hapus `Index.html` lama. Ganti `Code.gs` dan buat file baru (**+ → Script**) untuk tiap file di folder `appscript/` (nama sama, tanpa `.gs`), tempel isinya.
-3. **Project Settings → Script Properties**, tambahkan:
+## 2. Backend (Apps Script)
+1. Buat Google Sheet baru (atau pakai yang lama) → **Extensions → Apps Script**. Hapus `Index.html` lama.
+2. Buat file untuk **tiap** `.gs` di folder `appscript/` (nama sama) dan tempel isinya. Di **Project Settings** centang *Show "appsscript.json"* dan samakan isinya dengan `appscript/appsscript.json`.
+3. **Project Settings → Script Properties**:
    | Key | Isi |
    |---|---|
-   | `API_TOKEN` | kata sandi acak panjang (**sangat disarankan**) |
-   | `GEMINI_API_KEY` | opsional, untuk AI sungguhan |
-   | `GEMINI_MODEL` | opsional, bawaan `gemini-2.5-flash` |
-4. Pilih fungsi `setup` → **Run** (izinkan akses). Sheet & kolom baru dibuat otomatis; **data lama tetap aman**.
-5. **Deploy → New deployment → Web app** · Execute as: **Me** · Who has access: **Anyone** → salin URL berakhiran `/exec`.
-6. Setiap mengubah kode backend: **Deploy → Manage deployments → ✏️ → Version: New version → Deploy** (URL tidak berubah).
+   | `GOOGLE_CLIENT_ID` | Client ID dari langkah 1 (**wajib**) |
+   | `GEMINI_API_KEY` | opsional (AI sungguhan) · `GEMINI_MODEL` opsional |
+   | `ALLOWED_EMAILS` | opsional, batasi pengguna: `a@gmail.com, @kantor.com` (kosong = siapa saja) |
+4. Jalankan fungsi **`setup`** (izinkan akses Sheets & Drive). Ini membuat sheet master dan **`MASTER_KEY`**.
+5. ⚠️ **CADANGKAN `MASTER_KEY`** (Script Properties → salin ke password manager). **Tanpa kunci ini seluruh data tidak bisa dibuka lagi**, dan menghapusnya = kehilangan semua data.
+6. **Deploy → New deployment → Web app** · Execute as **Me** · Access **Anyone** → salin URL `/exec`.
+   Setiap mengubah kode: *Manage deployments → ✏️ → New version → Deploy*.
 
-> Tanpa `API_TOKEN`, siapa pun yang tahu URL bisa membaca/mengubah data Anda. Frontend bersifat publik, jadi token dimasukkan lewat layar "Hubungkan" (disimpan di browser, bukan di GitHub).
+## 3. Frontend (GitHub + Vercel)
+1. Isi `frontend/js/config.js`: `API_URL` (URL `/exec`) dan `GOOGLE_CLIENT_ID`. Keduanya publik, aman di GitHub.
+2. Push ke GitHub → Vercel **Add New Project** → **Root Directory: `frontend`** → Framework **Other** → Deploy.
+3. Tambahkan domain Vercel ke *Authorized JavaScript origins* (langkah 1).
 
-## 2. Deploy frontend (GitHub + Vercel)
+## Memindahkan data v2 (teks biasa) ke versi terenkripsi
+1. Login sekali ke aplikasi dengan akun Google tujuan.
+2. Di editor Apps Script jalankan `migrateLegacy('email@gmail.com')` (sheet lama `Wallets/Transactions/Savings_Goals/Settings` di spreadsheet master dibaca).
+3. Setelah yakin berhasil, **hapus sheet lama** — isinya masih teks biasa.
 
-1. Push folder ini ke GitHub.
-2. Vercel → **Add New Project** → pilih repo → **Root Directory: `frontend`** → Framework Preset: **Other** → Deploy (tanpa build command).
-3. Buka situs Vercel → isi **URL Web App** dan **Token** di layar Hubungkan. Ulangi sekali di tiap perangkat.
+## Model keamanan (baca ini)
+| | |
+|---|---|
+| **Terenkripsi** | dompet, transaksi, target, kategori, pengaturan (AES-256-CTR + HMAC-SHA256, nonce acak per baris, deteksi manipulasi) |
+| **Tidak terenkripsi** | email, nama, foto profil, relasi keanggotaan & undangan (dibutuhkan untuk login dan fitur keluarga) |
+| **Kunci** | kunci data per ruang dibungkus `MASTER_KEY` di Script Properties. **Bukan enkripsi ujung-ke-ujung**: pemilik script/server secara teknis bisa membuka data. Melindungi dari: akses langsung ke file Sheet/Drive, backup bocor, salah bagi file. Jika ingin *zero-knowledge* (pemilik pun tidak bisa baca), perlu desain E2EE berbasis passphrase — konsekuensinya AI server-side dan pemulihan akun tidak bisa dipakai. |
+| **Sesi** | token acak 30 hari, hanya hash-nya yang disimpan; verifikasi ID token Google (audience, penerbit, email terverifikasi) |
+| **Akses** | setiap request dicek keanggotaan & peran di server; viewer tidak bisa menulis; hanya pemilik yang mengundang/menghapus |
+| **AI** | bila `GEMINI_API_KEY` diisi: hanya ringkasan agregat / satu kalimat transaksi dikirim ke Google; dibatasi 12 permintaan/jam/akun |
 
-Uji lokal: `cd frontend && python3 -m http.server 8080`.
+**Jika dipakai publik, Anda menjadi pengelola data keuangan orang lain**: siapkan kebijakan privasi, jaga akun Google pemilik script (aktifkan 2FA), dan sediakan jalur penghapusan (tersedia: *Pengaturan → Hapus akun & data*).
 
-## Fitur
-- **Sidebar** (desktop) / **drawer + bottom-nav + tombol + tengah** (mobile), semua halaman responsif.
-- **Dompet tanpa batas**: tambah/edit/hapus, warna (palet + kustom), ikon, tipe, saldo awal, pratinjau langsung. Ganti nama otomatis memperbarui transaksi.
-- **Tema**: terang/gelap/otomatis + warna aplikasi bebas (per perangkat).
-- **Siklus gajian**: atur tanggal 1–28 (Pengaturan atau halaman Laporan). Dipakai di Dashboard, Transaksi, dan Laporan; navigasi siklus sebelumnya/berikutnya.
-- **Laporan**: grafik 3/6/12 siklus (klik batang untuk detail), tabel ringkasan, kategori, harian, per dompet, 5 pengeluaran terbesar.
-- **Transaksi**: tambah/edit/hapus, transfer antar dompet, filter + pencarian, ekspor CSV.
-- **Target tabungan**: progres, setoran per siklus yang dibutuhkan, "Tambah Dana" otomatis mencatat transaksi.
-- **Kategori** dapat dikelola; **AI**: input kalimat ("makan siang 25rb pakai cash") dan analisis siklus.
+## Batasan Apps Script
+Eksekusi bersamaan maks ±30, UrlFetch ±20.000/hari (akun Gmail biasa), tulisan diserialkan oleh satu lock, semua data ruang didekripsi per permintaan. Nyaman untuk puluhan–ratusan pengguna dengan ribuan transaksi; untuk skala lebih besar pertimbangkan akun Workspace atau backend database. Undangan keluarga **tidak dikirim lewat email** (mencegah penyalahgunaan): beri tahu orangnya, ia masuk dengan akun Google yang sama lalu menerima undangan di menu Keluarga.
 
-## Perubahan penting dari versi lama
-- `google.script.run` diganti `fetch` ke Web App (wajib agar frontend bisa di Vercel).
-- API key Gemini pindah ke Script Properties (tidak lagi di kode).
-- Kolom baru otomatis ditambahkan: `Transactions.GoalID`, `Wallets.Ikon`. Menghapus transaksi tabungan kini mengurangi target.
-- Input teks yang diawali `= + - @` diamankan agar tidak dibaca sebagai rumus Sheets.
+## Pengujian
+```
+node tests/crypto-test.js          # AES/SHA/HMAC dicocokkan dengan OpenSSL
+node tests/backend-test.js         # alur backend + isolasi + peran + enkripsi (layanan Google ditiru)
+PLAYWRIGHT_PATH=… node tests/e2e-ui.js   # UI sungguhan ↔ backend sungguhan, 3 pengguna, cetak PDF
+```
